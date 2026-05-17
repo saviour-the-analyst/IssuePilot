@@ -1,0 +1,111 @@
+// This is your Prisma schema file
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String       @id @default(cuid())
+  email         String       @unique
+  name          String?
+  avatarUrl     String?
+  githubId      String?      @unique
+  githubToken   String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  repositories  Repository[]
+}
+
+model Repository {
+  id              String            @id @default(cuid())
+  githubId        Int               @unique
+  name            String
+  fullName        String            @unique
+  owner           String
+  description     String?
+  url             String
+  isPrivate       Boolean           @default(false)
+  language        String?
+  stars           Int               @default(0)
+  lastSyncedAt    DateTime?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  userId          String
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  issues          Issue[]
+  
+  @@index([userId])
+}
+
+model Issue {
+  id                String              @id @default(cuid())
+  githubId          Int
+  number            Int
+  title             String
+  body              String?
+  state             String              @default("open")
+  author            String
+  authorAvatar      String?
+  url               String
+  createdAt         DateTime
+  updatedAt         DateTime
+  closedAt          DateTime?
+  labels            String[]            @default([])
+  repositoryId      String
+  repository        Repository          @relation(fields: [repositoryId], references: [id], onDelete: Cascade)
+  triageResult      TriageResult?
+  labelSuggestions  LabelSuggestion[]
+  duplicateMatches  DuplicateMatch[]    @relation("OriginalIssue")
+  duplicateOf       DuplicateMatch[]    @relation("DuplicateIssue")
+  
+  @@unique([repositoryId, githubId])
+  @@index([repositoryId])
+  @@index([state])
+}
+
+model TriageResult {
+  id                  String    @id @default(cuid())
+  issueId             String    @unique
+  issue               Issue     @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  summary             String
+  problem             String?
+  affectedArea        String?
+  complexity          String    @default("intermediate") // beginner, intermediate, advanced
+  reproductionSteps   String[]  @default([])
+  expectedBehavior    String?
+  possibleFiles       String[]  @default([])
+  acceptanceCriteria  String[]  @default([])
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+}
+
+model LabelSuggestion {
+  id          String   @id @default(cuid())
+  issueId     String
+  issue       Issue    @relation(fields: [issueId], references: [id], onDelete: Cascade)
+  label       String
+  confidence  Float    @default(0.5)
+  reason      String?
+  createdAt   DateTime @default(now())
+  
+  @@index([issueId])
+}
+
+model DuplicateMatch {
+  id                String   @id @default(cuid())
+  originalIssueId   String
+  duplicateIssueId  String
+  similarity        Float    @default(0.0)
+  reason            String?
+  createdAt         DateTime @default(now())
+  originalIssue     Issue    @relation("OriginalIssue", fields: [originalIssueId], references: [id], onDelete: Cascade)
+  duplicateIssue    Issue    @relation("DuplicateIssue", fields: [duplicateIssueId], references: [id], onDelete: Cascade)
+  
+  @@unique([originalIssueId, duplicateIssueId])
+  @@index([originalIssueId])
+}
